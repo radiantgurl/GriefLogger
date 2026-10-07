@@ -4,6 +4,7 @@ on:
   push:
     branches: [ "1.21.1" ]
 
+
 permissions:
   contents: write
 
@@ -47,12 +48,6 @@ jobs:
         if: steps.checkTag.outputs.exists == 'true'
         run: exit 1
 
-      - name: Publish to Modrinth
-        run: ./gradlew publishModrinth
-
-      - name: Publish to CurseForge
-        run: ./gradlew publishCurseforge
-
       - name: Publish to GitHub Releases
         uses: ncipollo/release-action@v1
         with:
@@ -61,3 +56,9 @@ jobs:
             neoforge/build/libs/*.jar
           name: ${{ steps.gradle_version.outputs.VERSION_NAME }}
           tag: ${{ steps.gradle_version.outputs.VERSION_NAME }}
+        
+      - name: Publish to Modrinth
+        run: ./gradlew publishModrinth
+
+      - name: Publish to CurseForge
+        run: ./gradlew publishCurseforge
