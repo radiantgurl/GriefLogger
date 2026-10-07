@@ -50,7 +50,7 @@ public class GriefLoggerConfig {
         config.pop();
 
         config.push("queue");
-        queueFrequency = config.comment("The frequency at which the database queue is executed (every 'x' ticks)").onlyOnServer().define("queueFrequency", 20, 1, 12000);
+        queueFrequency = config.comment("The frequency at which the database queue is executed (every 'x' ticks)").onlyOnServer().define("queueFrequency", 20, 1, 72000);
         config.pop();
 
         config.push("hello");
