@@ -10,6 +10,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
 import java.sql.*;
+import java.lang.Thread;
 import java.util.List;
 
 public class Database {
@@ -20,13 +21,15 @@ public class Database {
     private Statement statement;
     public final IQueue queue;
     public final IQueue batchQueue;
+    @Nullable
+    private Thread syncThread;
 
     public Database() {
         queue = new Queue(this, false);
         batchQueue = new Queue(this, true);
     }
 
-    public boolean createConnection() {
+    public synchronized boolean createConnection() {
         boolean connected;
         if (GriefLoggerConfig.useMysql.get()) {
             connected = createMysqlConnection();
@@ -51,7 +54,7 @@ public class Database {
         return connected && connection != null && statement != null;
     }
 
-    public boolean createMysqlConnection() {
+    public synchronized boolean createMysqlConnection() {
         String host = GriefLoggerConfig.mysqlHost.get();
         int port = GriefLoggerConfig.mysqlPort.get();
         String database = GriefLoggerConfig.mysqlDatabase.get();
@@ -74,7 +77,7 @@ public class Database {
         return connection != null;
     }
 
-    public boolean createSqliteConnection() {
+    public synchronized boolean createSqliteConnection() {
         try {
             Class.forName("org.sqlite.JDBC");
         } catch (ClassNotFoundException e) {
@@ -95,7 +98,7 @@ public class Database {
         return connection != null;
     }
 
-    public void createTable(String sql) {
+    public synchronized void createTable(String sql) {
         try {
             if (statement != null) {
                 statement.execute(sql);
@@ -105,7 +108,7 @@ public class Database {
         }
     }
 
-    public void execute(String sql, boolean logError) {
+    public synchronized void execute(String sql, boolean logError) {
         try {
             if (statement != null) {
                 statement.execute(sql);
@@ -117,7 +120,7 @@ public class Database {
         }
     }
 
-    public PreparedStatement prepareStatement(String query) throws SQLException {
+    public synchronized PreparedStatement prepareStatement(String query) throws SQLException {
         if (connection != null) {
             return connection.prepareStatement(query);
         } else {
@@ -125,7 +128,7 @@ public class Database {
         }
     }
 
-    public void executeStatements(List<PreparedStatement> statements, boolean isBatch) {
+    protected synchronized void executeStatementsAsyncProtected(List<PreparedStatement> statements, boolean isBatch) {
         try {
             for (PreparedStatement statement : statements) {
                 if (statement == null) {
@@ -154,5 +157,33 @@ public class Database {
         } catch (SQLException e) {
             GriefLogger.LOGGER.error("Failed to execute statements", e);
         }
+    }
+
+    private class AsyncExecuteThread extends Thread{
+
+        private final Database db;
+        private final List<PreparedStatement> statementList;
+        private final boolean isBatch;
+
+        protected AsyncExecuteThread(Database database, List<PreparedStatement> statements, boolean isBatch) {
+            super();
+            this.isBatch = isBatch;
+            db = database;
+            statementList = statements;
+        }
+
+        @Override
+        public void run(){
+            db.executeStatementsAsyncProtected(statementList, isBatch);
+        }
+    }
+
+    public void executeStatements(List<PreparedStatement> statements, boolean isBatch) {
+        // synchronized methods already do the joining automatically.
+//        if (syncThread != null)
+//            syncThread.join();
+//        syncThread = null;
+        syncThread = new AsyncExecuteThread(this, statements, isBatch);
+        syncThread.start();
     }
 }
